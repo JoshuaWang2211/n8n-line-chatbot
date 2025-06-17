@@ -20,6 +20,7 @@
 ---
 
 🖼️ 使用流程畫面預覽
+
 以下是本專案的 n8n 工作流程總覽，涵蓋 LINE webhook、訊息記錄、AI 回覆、Google 搜尋、OCR 分析等節點：
 
 [![n8n 工作流程總覽](./assets/screenshot.png)](./assets/screenshot.png)
@@ -85,32 +86,22 @@ https://你的子網域.ngrok-free.app/webhook/line-agent
 
 請建立兩份 Google Sheet (勿公開權限)：
 
-#### 第一份：工作表一命名為 Secrets（必要）
+#### 第一份：將 Sheet 內的 "工作表一" 改名為 Secrets（必要）
 用來集中儲存各項憑證資訊，格式如下：
 
-| key                  | value                              |
-|----------------------|-------------------------------------|
-| LINE_CHANNEL_TOKEN   | xxxxx                              |
-| OPENAI_LINE_BOT      | sk-xxxxx                           |
-| GOOGLE_SEARCH_API    | AIza...                            |
-| GOOGLE_CX_ID         | 1a2b3c4d...                        |
-| DATABASE_LINE_BOT_ID | 1lbEeiAhMl-0P5xhtdP...             |
+| key                  | value                              |說明                                 |
+|----------------------|------------------------------------|--------------------------------------|
+| LINE_CHANNEL_TOKEN   | xxxxx                              | LINE Bot 的 Access Token（必要）     |
+| OPENAI_LINE_BOT      | sk-xxxxx                           | OpenAI 的 API 金鑰             |
+| GOOGLE_SEARCH_API    | AIza...                            | Google Search API / YouTube Data API 金鑰 |
+| GOOGLE_CX_ID         | 1a2b3c4d...                        | Google Custom Search 引擎 ID         |
+| DATABASE_LINE_BOT_ID | 1lbEeiAhMl-0P5xhtdP...             | 儲存訊息用的 Google Sheet 文件 ID      |
 
-#### 第二份：隨意命名，用作訊息資料庫，將 Sheet ID 存入 Secrets 表單中
-"key": DATABASE_LINE_BOT_ID。"value": 貼上此 Sheet 的 ID。
+🔐 必要項目："key" (名稱) 及 "value" (API/secret 的值)
+
+#### 第二份：隨意命名，用作訊息資料庫，將此 Sheet 的 ID 存入 Secrets 表單中：
+"key" = DATABASE_LINE_BOT_ID；"value" = 此 Sheet 的 ID。
 本 workflow 執行時，會自動為每位使用者建立對應的分頁，並儲存他們傳送的訊息與對話紀錄。
-
----
-
-## 🔐 Secrets 表必要項目："key" (名稱) 及 "value" (API/secret 的值)
-
-| Key 名稱             | 說明                                 |
-|----------------------|--------------------------------------|
-| LINE_CHANNEL_TOKEN   | LINE Bot 的 Access Token（必要）     |
-| OPENAI_LINE_BOT      | OpenAI 的 API 金鑰             |
-| GOOGLE_SEARCH_API    | Google Search API / YouTube Data API 金鑰 |
-| GOOGLE_CX_ID         | Google Custom Search 引擎 ID         |
-| DATABASE_LINE_BOT_ID | 儲存訊息的 Google Sheet 文件 ID      |
 
 ---
 
