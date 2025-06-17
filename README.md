@@ -88,21 +88,6 @@ https://你的子網域.ngrok-free.app/webhook/line-agent
 
 ---
 
-## 📦 專案結構建議
-
-```
-line-chatbot-v3/
-├── Line_ChatBot.json              # 主流程檔案，可匯入 n8n
-├── README.md                      # 本文件
-├── .gitignore                     # 忽略 .env、node_modules 等
-├── assets/
-│   └── screenshot.png             # 流程截圖
-├── sheets/
-│   └── secrets-example.csv        # Secrets 表單格式示範
-```
-
----
-
 ## 🔐 Secrets 表必要項目："key" (名稱) 及 "value" (API/secret 的值)
 
 | Key 名稱             | 說明                                 |
