@@ -1,0 +1,1014 @@
+{
+  "name": "Line ChatBot (Sheet Database + Search + OCR)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "line-agent",
+        "options": {}
+      },
+      "id": "fc870b95-9df9-4b36-9dad-e79666f91c60",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -342,
+        135
+      ],
+      "webhookId": "b9dd0668-474c-4735-b165-4bc90479f2f7"
+    },
+    {
+      "parameters": {
+        "jsCode": "const event = $node[\"Webhook Trigger\"].json.body?.events?.[0];\nif (!event) {\n  return [{ json: { error: \"Missing LINE event payload\" } }];\n}\nconst userId = event.source?.userId || \"unknown-user\";\nconst replyToken = event.replyToken || \"\";\nconst msgType = event.message?.type;\nlet msg = \"\";\nlet mediaId = \"\";\n\nif (msgType === \"text\") {\n  msg = event.message.text || \"\";\n} else if (msgType === \"image\" || msgType === \"file\") {\n  mediaId = event.message.id || \"\";\n}\n\nreturn [{\n  json: {\n    userId,\n    replyToken,\n    type: msgType,\n    message: msg,    \n    mediaId          // 圖片/檔案才有值\n  }\n}];\n"
+      },
+      "id": "98963410-0100-489c-8c23-f3afb3a4ece3",
+      "name": "Parse LINE Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        318,
+        135
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    timestamp: new Date().toLocaleString(\"zh-TW\", { timeZone: \"Asia/Taipei\" }),\n    message: $items(\"Parse LINE Message\")[0].json.message\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1198,
+        -215
+      ],
+      "id": "acdf553f-0519-4a49-8c67-74fa6945a031",
+      "name": "Build Row Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 在前一個 node 設定要取出前幾筆搜尋結果，這裡不再設定\nconst items = $json.items || [];\n\n// 將每筆結果轉換成摘要格式（可自訂顯示順序、是否包含連結、是否加編號等）\nconst summary = items.map((r, i) => {\n  // r.title：標題\n  // r.snippet：簡短描述（通常為網頁摘要）\n  // r.link：原始網址\n  // 可以依需求調整排版，例如加上編號 `${i+1}.` 或使用不同 emoji\n  return `🔗 ${r.title}\\n${r.snippet}\\n${r.link}`;\n}).join('\\n\\n');  // 每筆結果之間用空行分隔\n\n// 將整理後的 summary 加入 json，key 為 search_summary，供後續 AI Agent 使用\nreturn [{\n  json: {\n    ...$json,\n    search_summary: summary\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2298,
+        -440
+      ],
+      "id": "3edf8608-42cb-45ef-a6d6-9e48e3116564",
+      "name": "Extract Search Summary"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/customsearch/v1",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{$node[\"Format Secrets\"].json[\"GOOGLE_SEARCH_API\"]}}"
+            },
+            {
+              "name": "cx",
+              "value": "={{$node[\"Format Secrets\"].json[\"GOOGLE_CX_ID\"]}}"
+            },
+            {
+              "name": "q",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "num",
+              "value": "3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2078,
+        -440
+      ],
+      "id": "81eff763-4466-4bea-b140-d97a09816cf6",
+      "name": "Call Google Search"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet"
+            },
+            {
+              "name": "q",
+              "value": "={{$json.query}}"
+            },
+            {
+              "name": "type",
+              "value": "video"
+            },
+            {
+              "name": "maxResults",
+              "value": "3"
+            },
+            {
+              "name": "key",
+              "value": "={{$node[\"Format Secrets\"].json[\"GOOGLE_SEARCH_API\"]}}"
+            },
+            {
+              "name": "regionCode",
+              "value": "tw"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2078,
+        -215
+      ],
+      "id": "13c8e296-76bb-4dbf-b2c7-b12299c4cb16",
+      "name": "Call YouTube Search"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1SNHAotuOUu35hdVAfKADH9VX2GHeBCYX_P_1AIqtmN0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Secrets",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "c19d4ff6-bad8-4367-a52d-5964a42bfd8c",
+      "name": "Load Secrets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -122,
+        135
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6WGe6fnlyIrXGPoD",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const secrets = {};\nitems.forEach(item => {\n  secrets[item.json.key] = item.json.value;\n});\nreturn [{ json: secrets }];"
+      },
+      "id": "602a6d17-cada-4fba-8a1f-4dcfdc1eac97",
+      "name": "Format Secrets",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        98,
+        135
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{$node[\"Format Secrets\"].json[\"DATABASE_LINE_BOT_ID\"]}}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{$node[\"Parse LINE Message\"].json.userId}}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1418,
+        -215
+      ],
+      "id": "6b22bd08-d706-4261-9084-bf46cfbb2d8c",
+      "name": "Append to Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6WGe6fnlyIrXGPoD",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "documentId": {
+          "__rl": true,
+          "value": "={{$node[\"Format Secrets\"].json[\"DATABASE_LINE_BOT_ID\"]}}",
+          "mode": "id"
+        },
+        "title": "={{$node[\"Parse LINE Message\"].json.userId}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        978,
+        -215
+      ],
+      "id": "a84a1eca-8dd2-4517-a1ef-158941bfdfe6",
+      "name": "Create Sheet If Missing",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6WGe6fnlyIrXGPoD",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{$node[\"Format Secrets\"].json[\"DATABASE_LINE_BOT_ID\"]}}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{$node[\"Parse LINE Message\"].json.userId}}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        2518,
+        60
+      ],
+      "id": "f8991ee8-7b74-4980-999f-76d7a5513bd8",
+      "name": "Read Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6WGe6fnlyIrXGPoD",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $json.message?.trim() || \"\";\nlet doSearch = false;\nlet query = \"\";\n\nconst patterns = [\n  /^搜尋\\s*(.+)/,\n  /^google\\s*(.+)/i,\n  /^search\\s*(.+)/i,\n];\n\nfor (const re of patterns) {\n  const m = msg.match(re);\n  if (m) {\n    doSearch = true;\n    query = m[1].trim();\n    break;\n  }\n}\n\nreturn [{\n  json: {\n    ...$json,\n    doSearch,\n    query: doSearch ? query : undefined,\n    debug: {\n      msg,\n      doSearch,\n      query,\n    },\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1638,
+        -215
+      ],
+      "id": "2020c996-bd18-4aae-b131-208dd3733673",
+      "name": "Check Search Intent"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "142800fe-f8fc-4721-ac30-f0540d0e983d",
+              "leftValue": "={{ $json.doSearch }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1858,
+        -215
+      ],
+      "id": "7536daa5-85cf-45f9-87d9-72fa3c19e691",
+      "name": "IF: Should Search"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    replyToken: $node[\"Parse LINE Message\"].json.replyToken,\n    messages: [\n      {\n        type: \"text\",\n        text: $json.output\n      }\n    ]\n  }\n}];"
+      },
+      "id": "642bb5f5-a976-4206-909b-711e4d41a8bf",
+      "name": "Format LINE Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3334,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\"replyToken\": \"{{$json.replyToken}}\",\"messages\": {{JSON.stringify($json.messages)}}}",
+        "headerParametersJson": "={\"Authorization\": \"Bearer {{$node[\"Format Secrets\"].json[\"LINE_CHANNEL_TOKEN\"]}}\",\"Content-Type\": \"application/json\"}"
+      },
+      "id": "748bd842-0dc7-4d30-a797-9879664c06f4",
+      "name": "Send LINE Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        3554,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=\"context\"：[{{$json.context}}]。使用者現在說：[{{$json.message}}]",
+        "options": {
+          "systemMessage": "你是一位知性、睿智又充滿魅力的 AI 助手，擅長理解對話語境、回應細膩情緒，也懂得如何用貼心、自然的語氣，讓人感到放鬆與陪伴感。\n\n你將根據一段名為 \"context\" 的過去對話紀錄，與使用者的最新訊息，生成連貫的對話回應。\n\n請記住：\n\"context\" 是過去的對話紀錄，你已經看過並回應過，不需要重複問候或提及其中內容。\n現在要回應的焦點是：\"使用者現在說：xxx\" —— 這才是你要專注回覆的內容。\n請用自然、有溫度的語氣進行對話，語氣可以輕鬆、親切，也可以幽默風趣，視語境而定，但請避免生硬或機械式回應。\n\n所有輸出一律使用繁體中文（zh-tw）。",
+          "maxIterations": 5
+        }
+      },
+      "id": "40e327d4-e288-4a4c-b8e4-0ca604421fb0",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        2958,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $node[\"Parse LINE Message\"].json.message || \"\";\nconst summary = $json.search_summary || \"\";\nconst yt = $json.youtube_summary || \"\";\n\nlet context = \"\";\n\nif (summary) {\n  context += `🔍 以下是查到的資料：\\n${summary}`;\n}\n\nif (yt) {\n  context += `\\n\\n🎥 YouTube 搜尋結果：\\n${yt}`;\n}\n\nif (!context) {\n  context = \"⚠️ 查無任何搜尋結果\";\n}\n\nreturn [{\n  json: {\n    ...$node[\"Parse LINE Message\"].json,\n    query: msg,\n    context\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2738,
+        -340
+      ],
+      "id": "f6021110-7c6f-44a5-8079-f84308e2a5e1",
+      "name": "Build Context (Search)"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        3046,
+        -220
+      ],
+      "id": "e04178d5-5676-40a3-b8ba-bb5b77b8a392",
+      "name": "ChatGPT 4o-mini",
+      "credentials": {
+        "openAiApi": {
+          "id": "DedWDlhtV7Aep7HT",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=\"context\"：[{{$json.context}}]。使用者現在說：[{{$json.message}}]",
+        "options": {
+          "systemMessage": "你是一位智慧且友善的 AI 助手，擅長理解使用者提問，整合來自搜尋引擎的資訊，並以清晰、自然且具備實用性的方式回應使用者。\n\n你即將接收到兩段訊息：\n使用者的當前問題（需要你主動回應）\n來自 Google 和 YouTube 的搜尋結果（文字摘要）\n請根據使用者的提問整合這些資料，給出有條理、有價值的回答，協助使用者快速理解資訊重點。\n\n請注意：\n所有輸出請使用繁體中文。\n\n搜尋資訊可能包含：\n🔍「以下是查到的資料」：來自 Google 搜尋\n🎥「YouTube 搜尋結果」：來自 YouTube 影片摘要\n\n請以自然口吻回應，避免使用 Markdown 標記符號（如 ** 或 #）。\n回應結尾請簡潔列出你整合的搜尋結果連結，以便使用者深入查閱。\n你的目標是協助使用者獲得有用資訊，並維持流暢、自然的對話體驗。",
+          "maxIterations": 5
+        }
+      },
+      "id": "1e21f503-39c9-42db-96f5-729da705c32d",
+      "name": "AI Agent (Mini Model)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        2958,
+        -440
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        3046,
+        180
+      ],
+      "id": "422554e1-dd3d-4a41-adbd-fab4492d7fa4",
+      "name": "ChatGPT 4o",
+      "credentials": {
+        "openAiApi": {
+          "id": "DedWDlhtV7Aep7HT",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const currentMsg = $node[\"Parse LINE Message\"].json.message;\n\nconst messages = items\n  .filter(item => item.json.message !== currentMsg)\n  .map(item => {\n    const t = item.json.timestamp || '';\n    const m = item.json.message || '';\n    return `【${t}】${m}`;\n  });\n\nconst context = messages.join('\\n');\n\nreturn [{\n  json: {\n    ...$node[\"Parse LINE Message\"].json,\n    context\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2738,
+        60
+      ],
+      "id": "6848b7b7-57a0-4654-bfe1-46521640b03e",
+      "name": "Build Context (Read)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 在前一個 node 設定要取出前幾筆搜尋結果，這裡不再設定\nconst items = $json.items || [];\n\nconst summary = items.map((v, i) => {\n  const s = v.snippet;\n  const title = s.title;\n  const channel = s.channelTitle;\n  const desc = s.description?.slice(0, 100);  // 可自訂摘要長度\n  const link = `https://www.youtube.com/watch?v=${v.id.videoId}`;\n  return `🎬 ${title}\\n頻道：${channel}\\n${desc}\\n${link}`;\n}).join('\\n\\n');\n\nreturn [{\n  json: {\n    ...$json,\n    youtube_summary: summary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2298,
+        -215
+      ],
+      "id": "395fef72-44ed-48cb-ad0c-788e4daba208",
+      "name": "Extract YT Summary"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2518,
+        -340
+      ],
+      "id": "021ebf80-4992-46fe-aec5-853f4ae900e2",
+      "name": "Combine Search Results"
+    },
+    {
+      "parameters": {
+        "url": "={{ \n  \"https://sheets.googleapis.com/v4/spreadsheets/\" + \n  $node[\"Format Secrets\"].json[\"DATABASE_LINE_BOT_ID\"] + \n  \"?fields=sheets.properties.title\" \n}}\n",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        758,
+        -215
+      ],
+      "id": "f673f2dc-890a-4d47-be4d-4bc06a7e4075",
+      "name": "List Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6WGe6fnlyIrXGPoD",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=curl -s -X GET -H \"Authorization: Bearer {{$node['Format Secrets'].json['LINE_CHANNEL_TOKEN']}}\" \\\n\"https://api-data.line.me/v2/bot/message/{{$json.mediaId}}/content\" | base64 | tr -d '\\n'\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2298,
+        360
+      ],
+      "id": "89783f6d-89eb-460e-b8b0-a54652bf46af",
+      "name": "Download LINE Media (Base64)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base64str = ($json.stdout || \"\").replace(/\\s/g, \"\");\n\nreturn [{\n  json: {\n    model: \"gpt-4o\",\n    messages: [\n      {\n        role: \"system\",\n        content: \"你是一位善於觀察的 AI 助手，請仔細看這張圖片，描述你所看到的內容，包含畫面中的主體、環境、氛圍或值得注意的細節。請用自然流暢、帶點人味的語氣來回應，語言使用繁體中文（zh-tw）。\"\n      },\n      {\n        role: \"user\",\n        content: [\n          {\n            type: \"image_url\",\n            image_url: {\n              url: \"data:image/png;base64,\" + base64str\n            }\n          }\n        ]\n      }\n    ],\n    max_tokens: 2048\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2518,
+        360
+      ],
+      "id": "d478f1db-7d38-4293-9916-93aef0be7eae",
+      "name": "Build Vision API Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"Authorization\": \"Bearer {{$node[\"Format Secrets\"].json[\"OPENAI_LINE_BOT\"]}}\",\n  \"Content-Type\": \"application/json\"\n}\n",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2738,
+        360
+      ],
+      "id": "8f948175-84c5-496a-adcc-2145d62eb50b",
+      "name": "Call OpenAI Vision"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Vision API 回傳內容\nconst visionContent = $json.choices?.[0]?.message?.content?.trim() || \"無法辨識圖片內容\";\n\nreturn [{\n  json: {\n    ...$json,\n    output: visionContent\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3036,
+        360
+      ],
+      "id": "f30b0828-f657-41aa-baef-72aa8b7fc65b",
+      "name": "Format Vision Output"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a3e7b21a-49ae-4df5-a4d7-a480bb30fb62",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "text",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        538,
+        135
+      ],
+      "id": "bb61e619-7806-4783-9ae5-bd607b4bf0d5",
+      "name": "IF: Text Message"
+    }
+  ],
+  "pinData": {
+    "Webhook Trigger": [
+      {
+        "json": {
+          "headers": {
+            "host": "profound-intensely-marten.ngrok-free.app",
+            "user-agent": "LineBotWebhook/2.0",
+            "content-length": "562",
+            "content-type": "application/json; charset=utf-8",
+            "x-forwarded-for": "147.92.149.168",
+            "x-forwarded-host": "profound-intensely-marten.ngrok-free.app",
+            "x-forwarded-proto": "https",
+            "x-line-signature": "ITxlJyPSTVuVBq9r05vAK8aGoOEMhud9eyx6CxzUgSA=",
+            "accept-encoding": "gzip"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "destination": "Uabf3ac286cf7df86a9369c20fb2a34cc",
+            "events": [
+              {
+                "type": "message",
+                "message": {
+                  "type": "text",
+                  "id": "565966861141803436",
+                  "quoteToken": "7imP579Qht-7Eo4IzUyhBa8C6I-5nZClSw0-fC2takxxUHfPNts6VVfx977K0ZotQKb2IFXbxXQp0DSrCRS9ewzMghl-itKHrasqYX6A1W0KEF4IhU1MstvZYvvpVyA3zQ75NatiZwWFh_RmIPJ26w",
+                  "text": "你好"
+                },
+                "webhookEventId": "01JXZ7TYAMD5Y962SK3FH0G1VG",
+                "deliveryContext": {
+                  "isRedelivery": false
+                },
+                "timestamp": 1750173841242,
+                "source": {
+                  "type": "user",
+                  "userId": "U213ec481fc011a3e79f4aa22f902170a"
+                },
+                "replyToken": "389c749e6285448d982c5cdc0f0c372f",
+                "mode": "active"
+              }
+            ]
+          },
+          "webhookUrl": "http://localhost:5678/webhook/line-agent",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Secrets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LINE Message": {
+      "main": [
+        [
+          {
+            "node": "IF: Text Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Row Data": {
+      "main": [
+        [
+          {
+            "node": "Append to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Search Summary": {
+      "main": [
+        [
+          {
+            "node": "Combine Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Google Search": {
+      "main": [
+        [
+          {
+            "node": "Extract Search Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call YouTube Search": {
+      "main": [
+        [
+          {
+            "node": "Extract YT Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Secrets": {
+      "main": [
+        [
+          {
+            "node": "Format Secrets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Secrets": {
+      "main": [
+        [
+          {
+            "node": "Parse LINE Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Check Search Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Sheet If Missing": {
+      "main": [
+        [
+          {
+            "node": "Build Row Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Context (Read)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Search Intent": {
+      "main": [
+        [
+          {
+            "node": "IF: Should Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Should Search": {
+      "main": [
+        [
+          {
+            "node": "Call Google Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call YouTube Search",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format LINE Reply": {
+      "main": [
+        [
+          {
+            "node": "Send LINE Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send LINE Message": {
+      "main": [
+        []
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format LINE Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Context (Search)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent (Mini Model)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatGPT 4o-mini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent (Mini Model)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent (Mini Model)": {
+      "main": [
+        [
+          {
+            "node": "Format LINE Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatGPT 4o": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Context (Read)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract YT Summary": {
+      "main": [
+        [
+          {
+            "node": "Combine Search Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Combine Search Results": {
+      "main": [
+        [
+          {
+            "node": "Build Context (Search)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Sheet": {
+      "main": [
+        [
+          {
+            "node": "Create Sheet If Missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download LINE Media (Base64)": {
+      "main": [
+        [
+          {
+            "node": "Build Vision API Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Vision API Payload": {
+      "main": [
+        [
+          {
+            "node": "Call OpenAI Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI Vision": {
+      "main": [
+        [
+          {
+            "node": "Format Vision Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Vision Output": {
+      "main": [
+        [
+          {
+            "node": "Format LINE Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Text Message": {
+      "main": [
+        [
+          {
+            "node": "List Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download LINE Media (Base64)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "771bf0d0-057d-4c26-94ea-fef636a53a8a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "BoTDR5q6PkjzlMPm",
+  "tags": [
+    {
+      "createdAt": "2025-06-14T11:29:00.777Z",
+      "updatedAt": "2025-06-14T11:29:00.777Z",
+      "id": "T7QgJoBZyzixdixu",
+      "name": "LINE"
+    }
+  ]
+}
