@@ -122,13 +122,35 @@ https://你的子網域.ngrok-free.app/webhook/line-agent
 
 📸 圖片讀取機制：
 
-目前使用 `curl` 下載使用者傳到 LINE 的圖片，並轉為 base64 給 GPT 處理，因此需確保系統已安裝 curl。
+目前使用 `curl` 下載使用者傳到 LINE 的圖片，並轉為 base64 給 GPT 處理，因此需確保已安裝 curl。
 
 此方法可處理圖片至約 1MB，超過此大小的圖片可能會因轉換失敗導致無法處理。
 
 我曾嘗試使用 n8n 的內建 HTTP Request + binary 流程，但經常遇到 binary 輸出為空或無法正確讀取圖片，故暫時採用 curl 方案。
 
-未來若找到更好的解方，將更新 workflow 並同步 readme。
+未來若找到更好的方式，我會更新 workflow 並同步 readme。
+
+在本機電腦執行 n8n，需在 docker 內安裝 curl。
+
+在 docker 內安裝 curl 的方法：
+
+1. 先確認 docker 內 n8n container 名稱，有可能是 "n8n" 或 "n8n-ce-n8n-1"，依安裝版本而異。
+
+2. 在終端機輸入以下指令，以 root 權限進入 container（注意 -u 0 以 root 身份進入）：
+
+```
+docker exec -it -u 0 n8n sh
+```
+
+(n8n 改成 container 名稱)
+
+3. 進入 /home/node # 後，輸入：
+
+```
+apk update && apk add curl 
+```
+
+即可在 docker 的 n8n 容器內安裝 curl。
 
 ---
 
