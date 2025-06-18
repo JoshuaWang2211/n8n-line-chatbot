@@ -1,0 +1,312 @@
+{
+  "name": "Line ChatBot v1 (Simple Memory only)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "line-agent",
+        "options": {}
+      },
+      "id": "5ce35821-5819-48ef-9402-dd8673771269",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -940,
+        180
+      ],
+      "webhookId": "a25faf53-3212-4555-91c9-f90c35096968"
+    },
+    {
+      "parameters": {
+        "jsCode": "const event = $node[\"Webhook Trigger\"].json.body?.events?.[0];\nif (!event) {\n  return [{ json: { error: \"Missing LINE event payload\" } }];\n}\nconst userId = event.source?.userId || \"unknown-user\";\nconst replyToken = event.replyToken || \"\";\nconst msg = event.message?.text || \"\";\nreturn [{\n  json: {\n    userId,\n    replyToken,\n    message: msg,\n    sessionId: userId\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        180
+      ],
+      "id": "9effef35-ef61-402a-a2d3-e2831c449492",
+      "name": "Parse LINE Message"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{$json[\"message\"]}}",
+        "options": {
+          "systemMessage": "你是 Joshua，一位知性、睿智又極具魅力的男性 AI 助手，也是調情撩妹高手。說話風格自信從容，帶點溫柔撩人，偶爾色色但不輕浮，能自由切換理性與感性。你喜歡以聰明、細膩又略帶挑逗的方式與人互動，具備強烈個人風格，語氣自然有磁性，常用具人味的語助詞（像是欸、嗯、其實、我猜…）。你擅長理解人心、分享知識，並在適當時機拋出撩人的語句，讓對方心跳加快又不覺得油膩。一律使用繁體中文（zh-tw）回覆。",
+          "maxIterations": 5
+        }
+      },
+      "id": "47bd8c0e-eabc-4de2-9e3b-bc23ed00e0da",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    replyToken: $node[\"Parse LINE Message\"].json.replyToken,\n    messages: [\n      {\n        type: \"text\",\n        text: $json.output\n      }\n    ]\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        316,
+        180
+      ],
+      "id": "68ddb07f-f8f7-4e31-a2d9-91cc72824622",
+      "name": "Output Mapper"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\"replyToken\": \"{{$json.replyToken}}\",\n  \"messages\": {{JSON.stringify($json.messages)}}}",
+        "headerParametersJson": "={\n  \"Authorization\": \"Bearer {{$node[\"轉換憑證格式\"].json[\"LINE_CHANNEL_TOKEN\"]}}\",\n  \"Content-Type\": \"application/json\"\n}\n"
+      },
+      "id": "4644dab2-daea-4066-93f7-ddb490434107",
+      "name": "Reply to LINE",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        536,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 20
+      },
+      "id": "d26af8d3-1319-4719-b35a-d4c5a6f19ef4",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        88,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "613e44dd-3d55-4dde-b015-b2fd96d444ff",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        400
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "DedWDlhtV7Aep7HT",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1SNHAotuOUu35hdVAfKADH9VX2GHeBCYX_P_1AIqtmN0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Secrets",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "name": "讀取憑證",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -720,
+        180
+      ],
+      "id": "48cad468-9c54-4725-ba86-828d8545d082",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6WGe6fnlyIrXGPoD",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const secrets = {};\nitems.forEach(item => {\n  secrets[item.json.key] = item.json.value;\n});\nreturn [{ json: secrets }];"
+      },
+      "name": "轉換憑證格式",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -500,
+        180
+      ],
+      "id": "282358e6-11df-4aae-9dc5-e65f0670940f"
+    }
+  ],
+  "pinData": {
+    "Webhook Trigger": [
+      {
+        "json": {
+          "headers": {
+            "host": "4382-124-6-28-141.ngrok-free.app",
+            "user-agent": "LineBotWebhook/2.0",
+            "content-length": "557",
+            "content-type": "application/json; charset=utf-8",
+            "x-forwarded-for": "147.92.150.194",
+            "x-forwarded-host": "4382-124-6-28-141.ngrok-free.app",
+            "x-forwarded-proto": "https",
+            "x-line-signature": "9NGhMmXGCIa/cyPk3ehTQM0lcq0GxETi33m11nBPZD8=",
+            "accept-encoding": "gzip"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "destination": "Uabf3ac286cf7df86a9369c20fb2a34cc",
+            "events": [
+              {
+                "type": "message",
+                "message": {
+                  "type": "text",
+                  "id": "565631276053430617",
+                  "quoteToken": "TIXboR_sbS8o98IhtLl8bfXMFIsH-OAdiFR7HT-KWDK9rfoiaNzVxcBBotNVv5XXZAxfXUQpyhLmDlp7nFQoBbjxB7d9rnZ7sllYIeseRmJKTxgnc_q5ItO0OKOEe4vIuFkrTu1JgqKNKkuNLHpXHw",
+                  "text": "2"
+                },
+                "webhookEventId": "01JXS92NP55ZJJPMKVQWG569E7",
+                "deliveryContext": {
+                  "isRedelivery": false
+                },
+                "timestamp": 1749973816844,
+                "source": {
+                  "type": "user",
+                  "userId": "U213ec481fc011a3e79f4aa22f902170a"
+                },
+                "replyToken": "24551840ec6f4250a062be9b3718b5d8",
+                "mode": "active"
+              }
+            ]
+          },
+          "webhookUrl": "http://localhost:5678/webhook/line-agent",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Parse LINE Message": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "讀取憑證",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Output Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output Mapper": {
+      "main": [
+        [
+          {
+            "node": "Reply to LINE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取憑證": {
+      "main": [
+        [
+          {
+            "node": "轉換憑證格式",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "轉換憑證格式": {
+      "main": [
+        [
+          {
+            "node": "Parse LINE Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8af59acc-cf06-47a1-ada1-b94c0d515b7b",
+  "meta": {
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "B7xffdFl5qH0UbCo",
+  "tags": [
+    {
+      "createdAt": "2025-06-14T11:29:00.777Z",
+      "updatedAt": "2025-06-14T11:29:00.777Z",
+      "id": "T7QgJoBZyzixdixu",
+      "name": "LINE"
+    }
+  ]
+}
