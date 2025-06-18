@@ -4,7 +4,16 @@
 
 ---
 
-## ✨ 功能特色
+🟢 最新版本：v3（具備完整對話記憶、Google 搜尋及 YouTube 搜尋功能、OCR 圖片辨識）
+
+其他版本：
+- v2：具備完整記憶、Google 搜尋及 YouTube 搜尋功能
+- v1：具備基本訊息記憶功能，最簡流程
+
+---
+
+## ✨ v3 版本功能特色
+
 📚 訊息自動記憶：LINE 使用者訊息會自動儲存至 Google Sheets（每人一分頁），供 AI 提取上下文對話內容，實現「記憶功能」
 
 🔍 智慧語意搜尋：當訊息開頭包含 google、search、搜尋 等關鍵字（不分大小寫），即自動觸發 Google 及 YouTube 搜尋，並回傳整理摘要
@@ -100,12 +109,39 @@ https://你的子網域.ngrok-free.app/webhook/line-agent
 🔐 必要項目："key" (名稱) 及 "value" (API/secret 的值)
 
 #### 第二份：隨意命名，用作訊息資料庫，將此 Sheet 的 ID 存入 Secrets 表單中：
-"key" = DATABASE_LINE_BOT_ID；"value" = 此 Sheet 的 ID。
-本 workflow 執行時，會自動為每位使用者建立對應的分頁，並儲存他們傳送的訊息與對話紀錄。
+
+"key" = DATABASE_LINE_BOT_ID
+
+"value" = 此 Sheet 的 ID
+
+本 workflow 執行時，會自動為每位使用者建立對應的分頁，並儲存他們傳送的訊息。
+
+之後每次對話時，AI 會自動從該使用者的分頁讀取訊息記錄作為參考。
 
 ---
 
-⚠️ 注意事項：
+📸 圖片讀取機制：
+
+目前使用 `curl` 下載使用者傳到 LINE 的圖片，並轉為 base64 給 GPT 處理，因此需確保系統已安裝 curl。
+
+此方法可處理圖片至約 1MB，超過此大小的圖片可能會因轉換失敗導致無法處理。
+
+我曾嘗試使用 n8n 的內建 HTTP Request + binary 流程，但經常遇到 binary 輸出為空或無法正確讀取圖片，故暫時採用 curl 方案。
+
+未來若找到更好的解方，將更新 workflow 並同步 readme。
+
+---
+
+📦 補充說明：若覺得目前 v3 版本流程或設定過於複雜，也可參考功能較簡化的舊版：
+
+- **v1 版本**：最簡化的記憶型 ChatBot，只具備基本訊息記錄與 AI 對話功能，適合初學及測試用途。
+- **v2 版本**：整合 Google Sheets 作為訊息資料庫，並加入智慧搜尋（Google/YouTube），功能完整但架構仍精簡。
+
+兩個舊版 workflow 檔案皆附在 repo 中，可依需求挑選使用。
+
+---
+
+⚠️ 其他注意事項：
 
 1. 本專案目前未使用 RAG（Retrieval-Augmented Generation）技術。
 
@@ -117,16 +153,20 @@ https://你的子網域.ngrok-free.app/webhook/line-agent
 
 2. 一般對話及圖片辨識功能的預設模型為 GPT-4o，處理即時搜尋結果則用 4o-mini 以節省成本。
 
-若有成本考量，也可將 OpenAI GPT 改為 Google Gemini Flash。
+若有成本考量，也可改為使用 Google Gemini Flash，API 免費額度更高。
 
 ---
 
 ## 📬 聯絡作者
 
-本說明檔由 ChatGPT 簡單生成，我只補充了較重要的部分，各項細節需直接看 Workflow。
-
-本專案是 vibe-coding 所生，仍持續開發中，隨時可能更新並增加新功能。
-
 如果有任何問題，或對流程設計有改進建議，歡迎開 issue 或直接聯絡我：
 
 - GitHub：[@JoshuaWang2211](https://github.com/JoshuaWang2211)  
+
+---
+
+本專案由作者 Joshua Wang 採取 vibe-coding 方式一邊學習、一邊實作，目的是探索 n8n 與 AI 整合的各種可能性。
+
+開發節奏自由，功能也會依照實際需求或新想法不定期更新。歡迎對 AI 工作流程、chatbot 或 n8n 有興趣的朋友參考、延伸，或一起交流改進。
+
+說明文件主要由 ChatGPT 協助生成，重要段落我已補充調整，其餘細節請直接參閱 workflow。
