@@ -323,7 +323,7 @@
         "jsonParameters": true,
         "options": {},
         "bodyParametersJson": "={\"replyToken\": \"{{$json.replyToken}}\",\"messages\": {{JSON.stringify($json.messages)}}}",
-        "headerParametersJson": "={\"Authorization\": \"Bearer {{$node[\"Format Secrets\"].json[\"2LINE_CHANNEL_TOKEN\"]}}\",\"Content-Type\": \"application/json\"}"
+        "headerParametersJson": "={\"Authorization\": \"Bearer {{$node[\"Format Secrets\"].json[\"LINE_CHANNEL_TOKEN\"]}}\",\"Content-Type\": \"application/json\"}"
       },
       "id": "748bd842-0dc7-4d30-a797-9879664c06f4",
       "name": "Send LINE Message",
